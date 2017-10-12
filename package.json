@@ -1,0 +1,10 @@
+{
+  "name": "awesomebanbot",
+  "version": "0.0.1",
+  "description": "An awesome ban bot for Telegram",
+  "main": "app.js",
+  "repository": "https://github.com/iamkd/awesomebanbot",
+  "author": "Danyil Karuna <kd@oked.me>",
+  "license": "MIT",
+  "private": false
+}
