@@ -2,9 +2,28 @@
   "name": "awesomebanbot",
   "version": "0.0.1",
   "description": "An awesome ban bot for Telegram",
-  "main": "app.js",
+  "main": "src/app.js",
   "repository": "https://github.com/iamkd/awesomebanbot",
   "author": "Danyil Karuna <kd@oked.me>",
   "license": "MIT",
-  "private": false
+  "private": false,
+  "scripts": {
+    "start": "nodemon ./src/app.js --exec babel-node"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.0.1",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-preset-env": "^1.6.0",
+    "nodemon": "^1.12.1",
+    "standard": "^10.0.3"
+  },
+  "dependencies": {
+    "dotenv": "^4.0.0",
+    "telegraf": "^3.13.0",
+    "uuid": "^3.1.0"
+  },
+  "standard": {
+    "parser": "babel-eslint"
+  }
 }
