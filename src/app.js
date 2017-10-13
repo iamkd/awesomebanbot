@@ -1,9 +1,10 @@
-import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
 import Telegraf from 'telegraf'
 
 import { PollManager } from './PollManager'
 
-dotenv.config()
+require('dotenv').config()
 
 const uuidRegexp = '[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}'
 const bot = new Telegraf(process.env.BOT_TOKEN)
@@ -48,4 +49,27 @@ bot.action(new RegExp(`votesave:${uuidRegexp}$`, 'i'), (ctx) => {
   }
 })
 
-bot.startPolling()
+if (process.env.WEBHOOK_URL && process.env.WEBHOOK_SECRET && process.env.CERT_PATH) {
+  const fullUrl = process.env.WEBHOOK_URL + process.env.WEBHOOK_SECRET
+  const certPath = process.env.CERT_PATH
+
+  const tlsOptions = {
+    key: fs.readFileSync(path.join(certPath, 'privkey1.pem')),
+    cert: fs.readFileSync(path.join(certPath, 'fullchain1.pem')),
+    ca: [
+      fs.readFileSync(path.join(certPath, 'chain1.pem'))
+    ]
+  }
+
+  bot.telegram
+    .setWebhook(fullUrl, null, 5000)
+    .then(() => {
+      bot.startWebhook(
+        process.env.WEBHOOK_SECRET,
+        tlsOptions,
+        8443
+      )
+    })
+} else {
+  bot.startPolling()
+}
