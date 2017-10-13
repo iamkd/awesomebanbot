@@ -13,8 +13,9 @@ bot.telegram.getMe().then((botInfo) => {
   bot.options.username = botInfo.username
 })
 
-bot.command('/ban', (ctx) => {
+bot.command(['/ban', '/mute', '/spam'], (ctx) => {
   const { message } = ctx
+  const type = ctx.update.message.text.split('/')[1]
 
   if (!message.reply_to_message) {
     return
@@ -24,16 +25,16 @@ bot.command('/ban', (ctx) => {
   const initiator = message.from
   const victim = message.reply_to_message.from
 
-  pollManager.createPoll({ chatId, initiator, victim })
+  pollManager.createPoll({ chatId, initiator, victim }, type)
 })
 
-bot.action(new RegExp(`voteban:${uuidRegexp}$`, 'i'), (ctx) => {
+bot.action(new RegExp(`votepunish:${uuidRegexp}$`, 'i'), (ctx) => {
   const pollId = ctx.match[0].split(':')[1]
   const user = ctx.update.callback_query.from
 
   const poll = pollManager.activePolls.get(pollId)
   if (poll) {
-    poll.voteBan(user)
+    poll.votePunish(user)
   }
 })
 

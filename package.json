@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "dotenv": "^4.0.0",
+    "moment": "^2.19.1",
     "telegraf": "^3.13.0",
     "uuid": "^3.1.0"
   },

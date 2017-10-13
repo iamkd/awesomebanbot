@@ -1,33 +1,44 @@
 import { Markup } from 'telegraf'
 import { v4 } from 'uuid'
+import moment from 'moment'
 
+function pastWord (word) {
+  switch (word) {
+    case 'ban':
+      return 'banned'
+    case 'mute':
+      return 'muted'
+    default:
+      return 'DOSMOT?'
+  }
+}
 export class Poll {
-  banVotes = []
+  punishVotes = []
   saveVotes = []
 
-  constructor ({ chatId, initiator, victim }, updateCallback) {
+  constructor ({ chatId, initiator, victim }, type) {
     this.id = v4()
     this.chatId = chatId
     this.initiator = initiator
     this.victim = victim
     this.createdAt = new Date()
-    this.updateCallback = updateCallback
+    this.type = type
   }
 
   removeVoteIfExists (user) {
-    const banIndex = this.banVotes.findIndex(item => item.id === user.id)
+    const punishIndex = this.punishVotes.findIndex(item => item.id === user.id)
     const saveIndex = this.saveVotes.findIndex(item => item.id === user.id)
-    if (banIndex >= 0) {
-      this.banVotes.splice(banIndex, 1)
+    if (punishIndex >= 0) {
+      this.punishVotes.splice(punishIndex, 1)
     }
     if (saveIndex >= 0) {
-      this.saveVotes.splice(banIndex, 1)
+      this.saveVotes.splice(punishIndex, 1)
     }
   }
 
-  voteBan (user) {
+  votePunish (user) {
     this.removeVoteIfExists(user)
-    this.banVotes.push(user)
+    this.punishVotes.push(user)
     this.updateCallback()
   }
 
@@ -39,18 +50,24 @@ export class Poll {
 
   getMessage () {
     switch (this.getStatus()) {
-      case 'saved':
-        return `${this.victim.first_name} was banned by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`
+      case 'punished':
+        return {
+          text: `${this.victim.first_name} was ${pastWord(this.type)} by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`,
+          extra: ''
+        }
 
-      case 'banned':
-        return `${this.victim.first_name} was saved by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`
+      case 'saved':
+        return {
+          text: `${this.victim.first_name} was saved by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`,
+          extra: ''
+        }
 
       case 'pending':
       default:
         return {
-          text: `User ${this.initiator.first_name} wants to ban ${this.victim.first_name}`,
+          text: `User ${this.initiator.first_name} wants to ${this.type} ${this.victim.first_name}`,
           extra: Markup.inlineKeyboard([
-            Markup.callbackButton(`Ban (${this.banVotes.length}/5)`, `voteban:${this.id}`),
+            Markup.callbackButton(`Punish (${this.punishVotes.length}/5)`, `votepunish:${this.id}`),
             Markup.callbackButton(`Save (${this.saveVotes.length}/5)`, `votesave:${this.id}`)
           ]).extra()
         }
@@ -58,11 +75,11 @@ export class Poll {
   }
 
   getStatus () {
-    if (this.saveVotes.length >= 2) {
+    if (this.saveVotes.length >= 1) {
       return 'saved'
     }
-    if (this.banVotes.length >= 2) {
-      return 'banned'
+    if (this.punishVotes.length >= 1) {
+      return 'punished'
     }
     return 'pending'
   }
@@ -75,11 +92,11 @@ export class PollManager {
     this.bot = bot
   }
 
-  createPoll (params) {
+  createPoll (params, type) {
     const { activePolls } = this
     const { telegram } = this.bot
 
-    const poll = new Poll(params)
+    const poll = new Poll(params, type)
     activePolls.set(poll.id, poll)
 
     const { text, extra } = poll.getMessage()
@@ -88,12 +105,30 @@ export class PollManager {
       .then(({ message_id, chat: { id } }) => {
         poll.updateCallback = async () => {
           const currentStatus = poll.getStatus()
-          if (currentStatus === 'banned') {
-            await telegram.kickChatMember(id, poll.victim.id, 0)
+          if (currentStatus === 'punished') {
+            if (type === 'ban') {
+              await telegram.kickChatMember(id, poll.victim.id, 0)
+            } else if (type === 'mute') {
+              await telegram.restrictChatMember(
+                id,
+                poll.victim.id,
+                {
+                  until_date: moment().add(1, 'day').format('x'),
+                  can_send_messages: false,
+                  can_send_media_messages: false,
+                  can_send_other_messages: false,
+                  can_add_web_page_previews: false
+                }
+              )
+            } else if (type === 'spam') {
+              await telegram.kickChatMember(id, poll.victim.id, 0)
+            }
           }
-          if (currentStatus === 'saved' || currentStatus === 'banned') {
+
+          if (currentStatus === 'saved' || currentStatus === 'punished') {
             activePolls.delete(poll.id)
           }
+
           const currentMessage = poll.getMessage()
           telegram.editMessageText(id, message_id, message_id, currentMessage.text, currentMessage.extra)
         }
