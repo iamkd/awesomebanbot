@@ -3,12 +3,14 @@ import path from 'path'
 import Telegraf from 'telegraf'
 
 import { PollManager } from './PollManager'
+import { MessageStorage } from './MessageStorage'
 
 require('dotenv').config()
 
 const uuidRegexp = '[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}'
 const bot = new Telegraf(process.env.BOT_TOKEN)
-const pollManager = new PollManager(bot)
+const messageStorage = new MessageStorage()
+const pollManager = new PollManager(bot, messageStorage)
 
 bot.telegram.getMe().then((botInfo) => {
   bot.options.username = botInfo.username
@@ -49,6 +51,12 @@ bot.action(new RegExp(`votesave:${uuidRegexp}$`, 'i'), (ctx) => {
   }
 })
 
+bot.hears(/.*/, (ctx) => {
+  const { message } = ctx
+  const { message_id: messageId, from: { id: userId }, chat: { id: chatId } } = message
+  messageStorage.add({ messageId, userId, chatId })
+})
+
 if (process.env.WEBHOOK_URL && process.env.WEBHOOK_SECRET && process.env.CERT_PATH) {
   const fullUrl = process.env.WEBHOOK_URL + process.env.WEBHOOK_SECRET
   const certPath = process.env.CERT_PATH
@@ -71,5 +79,5 @@ if (process.env.WEBHOOK_URL && process.env.WEBHOOK_SECRET && process.env.CERT_PA
       )
     })
 } else {
-  bot.startPolling()
+  bot.telegram.deleteWebhook().then(() => bot.startPolling())
 }

@@ -2,16 +2,41 @@ import { Markup } from 'telegraf'
 import { v4 } from 'uuid'
 import moment from 'moment'
 
+import { MessageStorage } from './MessageStorage' // eslint-disable-line
+
+/**
+ * @typedef {('ban'|'spam'|'mute')} PollType
+ */
+
 function pastWord (word) {
   switch (word) {
     case 'ban':
       return 'banned'
     case 'mute':
       return 'muted'
+    case 'spam':
+      return 'reported as a spammer'
     default:
       return 'DOSMOT?'
   }
 }
+
+function getUserName ({ first_name: firstName, last_name: lastName, username }) {
+  let result = ''
+
+  if (firstName) {
+    result += firstName
+  }
+  if (lastName) {
+    result += ' ' + lastName
+  }
+  if (username) {
+    result += ` (@${username})`
+  }
+
+  return result
+}
+
 export class Poll {
   punishVotes = []
   saveVotes = []
@@ -52,22 +77,24 @@ export class Poll {
     switch (this.getStatus()) {
       case 'punished':
         return {
-          text: `${this.victim.first_name} was ${pastWord(this.type)} by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`,
+          text: `${getUserName(this.victim)} was ${pastWord(this.type)} by voting.
+          Say thanks to ${this.punishVotes.map(vote => vote.first_name).join(', ')}!`,
           extra: ''
         }
 
       case 'saved':
         return {
-          text: `${this.victim.first_name} was saved by voting. Thanks ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`,
+          text: `${getUserName(this.victim)} was saved by voting.
+          Say thanks to ${this.saveVotes.map(vote => vote.first_name).join(', ')}!`,
           extra: ''
         }
 
       case 'pending':
       default:
         return {
-          text: `User ${this.initiator.first_name} wants to ${this.type} ${this.victim.first_name}`,
+          text: `User ${this.initiator.first_name} wants to ${this.type === 'spam' ? 'ban for spam' : this.type} ${this.victim.first_name}`,
           extra: Markup.inlineKeyboard([
-            Markup.callbackButton(`Punish (${this.punishVotes.length}/5)`, `votepunish:${this.id}`),
+            Markup.callbackButton(`${this.type} (${this.punishVotes.length}/5)`, `votepunish:${this.id}`),
             Markup.callbackButton(`Save (${this.saveVotes.length}/5)`, `votesave:${this.id}`)
           ]).extra()
         }
@@ -88,8 +115,14 @@ export class Poll {
 export class PollManager {
   activePolls = new Map();
 
-  constructor (bot) {
+  /**
+   * Creates a poll manager
+   * @param {*} bot
+   * @param {MessageStorage} storage
+   */
+  constructor (bot, storage) {
     this.bot = bot
+    this.storage = storage
   }
 
   createPoll (params, type) {
@@ -102,15 +135,15 @@ export class PollManager {
     const { text, extra } = poll.getMessage()
     telegram
       .sendMessage(params.chatId, text, extra)
-      .then(({ message_id, chat: { id } }) => {
+      .then(({ message_id: messageId, chat: { id: chatId } }) => {
         poll.updateCallback = async () => {
           const currentStatus = poll.getStatus()
           if (currentStatus === 'punished') {
             if (type === 'ban') {
-              await telegram.kickChatMember(id, poll.victim.id, 0)
+              await telegram.kickChatMember(chatId, poll.victim.id, 0)
             } else if (type === 'mute') {
               await telegram.restrictChatMember(
-                id,
+                chatId,
                 poll.victim.id,
                 {
                   until_date: moment().add(1, 'day').format('x'),
@@ -121,7 +154,13 @@ export class PollManager {
                 }
               )
             } else if (type === 'spam') {
-              await telegram.kickChatMember(id, poll.victim.id, 0)
+              const messages = this.storage.getUserMessagesInChat(poll.victim.id, chatId)
+              for (let i = 0; i < messages.length; i += 1) {
+                const { chatId, messageId } = messages[i]
+                await telegram.deleteMessage(chatId, messageId)
+              }
+              await telegram.kickChatMember(chatId, poll.victim.id, 0)
+              this.storage.deleteUserMessages(poll.victim.id)
             }
           }
 
@@ -130,7 +169,7 @@ export class PollManager {
           }
 
           const currentMessage = poll.getMessage()
-          telegram.editMessageText(id, message_id, message_id, currentMessage.text, currentMessage.extra)
+          telegram.editMessageText(chatId, messageId, messageId, currentMessage.text, currentMessage.extra)
         }
       })
   }
