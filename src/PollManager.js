@@ -4,18 +4,14 @@ import moment from 'moment'
 
 import { MessageStorage } from './MessageStorage' // eslint-disable-line
 
-/**
- * @typedef {('ban'|'spam'|'mute')} PollType
- */
-
-function pastWord (word) {
-  switch (word) {
+function punishedMessage (user, type) {
+  switch (type) {
     case 'ban':
-      return 'banned'
+      return `${user} was banned from this chat.`
     case 'mute':
-      return 'muted'
+      return `${user} was muted.`
     case 'spam':
-      return 'reported as a spammer'
+      return `${user} was banned from this chat. He is added to the spammer list.`
     default:
       return 'DOSMOT?'
   }
@@ -77,7 +73,7 @@ export class Poll {
     switch (this.getStatus()) {
       case 'punished':
         return {
-          text: `${getUserName(this.victim)} was ${pastWord(this.type)} by voting.
+          text: `${punishedMessage(getUserName(this.victim))}
           Say thanks to ${this.punishVotes.map(vote => vote.first_name).join(', ')}!`,
           extra: ''
         }
