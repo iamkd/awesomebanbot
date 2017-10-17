@@ -1,21 +1,9 @@
+import * as R from 'ramda'
 import { Markup } from 'telegraf'
 import { v4 } from 'uuid'
 import moment from 'moment'
 
 import { MessageStorage } from './MessageStorage' // eslint-disable-line
-
-function punishedMessage (user, type) {
-  switch (type) {
-    case 'ban':
-      return `${user} was banned from this chat.`
-    case 'mute':
-      return `${user} was muted.`
-    case 'spam':
-      return `${user} was banned from this chat. He is added to the spammer list.`
-    default:
-      return 'DOSMOT?'
-  }
-}
 
 function getUserName ({ first_name: firstName, last_name: lastName, username }) {
   let result = ''
@@ -33,6 +21,20 @@ function getUserName ({ first_name: firstName, last_name: lastName, username }) 
   return result
 }
 
+function punishedMessage (user, type) {
+  const userName = getUserName(user)
+  switch (type) {
+    case 'ban':
+      return `${userName} was banned from this chat.`
+    case 'mute':
+      return `${userName} was muted.`
+    case 'spam':
+      return `${userName} was banned from this chat. He is added to the spammer list.`
+    default:
+      return 'DOSMOT?'
+  }
+}
+
 export class Poll {
   punishVotes = []
   saveVotes = []
@@ -47,8 +49,8 @@ export class Poll {
   }
 
   removeVoteIfExists (user) {
-    const punishIndex = this.punishVotes.findIndex(item => item.id === user.id)
-    const saveIndex = this.saveVotes.findIndex(item => item.id === user.id)
+    const punishIndex = R.findIndex(R.propEq('id', user.id), this.punishVotes)
+    const saveIndex = R.findIndex(R.propEq('id', user.id), this.saveVotes)
     if (punishIndex >= 0) {
       this.punishVotes.splice(punishIndex, 1)
     }
@@ -73,7 +75,7 @@ export class Poll {
     switch (this.getStatus()) {
       case 'punished':
         return {
-          text: `${punishedMessage(getUserName(this.victim))}
+          text: `${punishedMessage(this.victim)}
           Say thanks to ${this.punishVotes.map(vote => vote.first_name).join(', ')}!`,
           extra: ''
         }
@@ -137,6 +139,7 @@ export class PollManager {
           if (currentStatus === 'punished') {
             if (type === 'ban') {
               await telegram.kickChatMember(chatId, poll.victim.id, 0)
+              this.storage.deleteUserMessages(poll.victim.id)
             } else if (type === 'mute') {
               await telegram.restrictChatMember(
                 chatId,

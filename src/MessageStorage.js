@@ -1,3 +1,5 @@
+import * as R from 'ramda'
+
 /**
  * A number, or a string containing a number.
  * @typedef {Object} Message
@@ -29,7 +31,7 @@ export class MessageStorage {
    * @return {[Message]} User messages
    */
   getUserMessages (userId) {
-    return this.items.filter(message => message.userId === userId)
+    return R.filter(R.propEq('userId', userId), this.items)
   }
 
   /**
@@ -38,7 +40,7 @@ export class MessageStorage {
    * @return {[Message]} Chat messages
    */
   getChatMessages (chatId) {
-    return this.items.filter(message => message.chatId === chatId)
+    return R.filter(R.propEq('chatId', chatId), this.items)
   }
 
   /**
@@ -47,7 +49,8 @@ export class MessageStorage {
    * @return {[Message]} User messages in chat
    */
   getUserMessagesInChat (userId, chatId) {
-    return this.items.filter(message => message.userId === userId && message.chatId === chatId)
+    // return this.items.filter(message => message.userId === userId && message.chatId === chatId)
+    return R.filter(R.both(R.propEq('userId', userId), R.propEq('chatId', chatId)), this.items)
   }
 
   /**
@@ -55,6 +58,6 @@ export class MessageStorage {
    * @param {string} userId - User ID
    */
   deleteUserMessages (userId) {
-    this.items = this.items.filter(message => message.userId !== userId)
+    this.items = R.reject(R.propEq('userId', userId), this.items)
   }
 }

@@ -51,9 +51,49 @@ bot.action(new RegExp(`votesave:${uuidRegexp}$`, 'i'), (ctx) => {
   }
 })
 
-bot.hears(/.*/, (ctx) => {
+// Greeting
+bot.use((ctx, next) => {
   const { message } = ctx
-  const { message_id: messageId, from: { id: userId }, chat: { id: chatId } } = message
+
+  if (message.new_chat_members) {
+    const botId = +process.env.BOT_ID
+    const didBotJoin = !!message.new_chat_members.find(member => member.id === botId)
+    if (didBotJoin) {
+      ctx.reply('Hi! Please grant me admin rights so I can ban users and remove spam messages.')
+        .then(({ message_id: greetingMessageId, chat: { id: greetingChatId } }) => {
+          return new Promise((resolve, reject) => {
+            const interval = setInterval(
+              () => bot.telegram
+                .getChatMember(ctx.chat.id, botId)
+                .then(({ status }) => {
+                  if (status === 'administrator') {
+                    bot.telegram.deleteMessage(greetingChatId, greetingMessageId)
+                    clearInterval(interval)
+                    resolve()
+                  }
+                }),
+               1500
+            )
+
+            setTimeout(() => {
+              clearInterval(interval)
+              reject(new Error('Please grant me admin rights or I am useless for you. I\'ll be silently waiting for it'))
+            }, 60 * 1000)
+          })
+        })
+        .then(
+          () => ctx.reply('Great! I can do everything you need now. Reply with `/ban`, `/mute` or `/spam` to trigger a vote on selected user.', { parse_mode: 'Markdown' }),
+          (error) => ctx.reply(error.message)
+        )
+    }
+  }
+
+  next(ctx)
+})
+
+// Adding message to message storage
+bot.use((ctx) => {
+  const { message_id: messageId, from: { id: userId }, chat: { id: chatId } } = ctx.message
   messageStorage.add({ messageId, userId, chatId })
 })
 
